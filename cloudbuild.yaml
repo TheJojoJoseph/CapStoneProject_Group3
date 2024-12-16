@@ -1,0 +1,74 @@
+steps:
+# Install dependencies
+- name: 'python:3.9'
+  entrypoint: pip
+  args: ['install', '-r', 'requirements.txt', '-t', '/workspace/function/lib']
+
+# Run tests
+- name: 'python:3.9'
+  entrypoint: python
+  args: ['-m', 'pytest', 'tests/']
+
+# Deploy Data Ingestion function
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - functions
+  - deploy
+  - data-ingestion
+  - --runtime=python39
+  - --trigger-resource=${_RAW_DATA_BUCKET}
+  - --trigger-event=google.storage.object.finalize
+  - --source=./cloud_functions/data_ingestion
+  - --entry-point=ingest_data
+  - --memory=2048MB
+  - --timeout=540s
+  - --region=${_REGION}
+
+# Deploy Data Processing function
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - functions
+  - deploy
+  - data-processing
+  - --runtime=python39
+  - --trigger-topic=process-data
+  - --source=./cloud_functions/data_processing
+  - --entry-point=process_data
+  - --memory=2048MB
+  - --timeout=540s
+  - --region=${_REGION}
+
+# Deploy Feature Engineering function
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - functions
+  - deploy
+  - feature-engineering
+  - --runtime=python39
+  - --trigger-topic=engineer-features
+  - --source=./cloud_functions/feature_engineering
+  - --entry-point=engineer_features
+  - --memory=2048MB
+  - --timeout=540s
+  - --region=${_REGION}
+
+# Deploy Model Training function
+- name: 'gcr.io/cloud-builders/gcloud'
+  args:
+  - functions
+  - deploy
+  - model-training
+  - --runtime=python39
+  - --trigger-topic=train-model
+  - --source=./cloud_functions/model_training
+  - --entry-point=train_and_deploy_model
+  - --memory=2048MB
+  - --timeout=540s
+  - --region=${_REGION}
+
+substitutions:
+  _REGION: us-central1
+  _RAW_DATA_BUCKET: ${PROJECT_ID}-raw-data
+
+options:
+  logging: CLOUD_LOGGING_ONLY
